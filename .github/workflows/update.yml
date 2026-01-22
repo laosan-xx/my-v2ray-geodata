@@ -1,0 +1,74 @@
+name: Update Geodata
+
+on:
+  schedule:
+    # 每天 UTC 时间 0:00 运行（北京时间 8:00）
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 需要写入权限以提交更改
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup GitHub CLI
+        run: |
+          type -p curl >/dev/null || apt install curl -y
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && apt update \
+          && apt install gh -y
+
+      - name: Setup jq
+        run: |
+          apt-get update
+          apt-get install -y jq
+
+      - name: Run update script
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x update.sh
+          # 运行更新脚本
+          # 返回码 0: 成功更新
+          # 返回码 2: 版本相同，无需更新（正常情况）
+          # 返回码 1: 错误（如网络问题、API 失败等）
+          bash update.sh
+          exit_code=$?
+          if [ $exit_code -eq 1 ]; then
+            echo "Error: Failed to update geodata (exit code: $exit_code)"
+            exit 1
+          fi
+          echo "Update script completed (exit code: $exit_code)"
+
+      - name: Check for changes
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add Makefile
+          git commit -m "chore: update geodata versions [skip ci]"
+
+      - name: Push changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          branch=$(git branch --show-current || echo "main")
+          git push origin HEAD:$branch
