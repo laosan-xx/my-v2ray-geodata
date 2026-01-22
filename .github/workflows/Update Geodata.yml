@@ -11,8 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # 需要写入权限以提交更改
+      actions: write   # 需要写入权限以删除 workflow 运行历史
     
     steps:
+      - name: Clean up old workflow runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 获取当前 workflow 的所有运行记录（排除当前运行）
+          gh run list --workflow="${{ github.workflow }}" --repo=${{ github.repository }} --json databaseId --jq '.[].databaseId' | while read run_id; do
+            if [ "$run_id" != "${{ github.run_id }}" ]; then
+              echo "Deleting workflow run: $run_id"
+              gh run delete "$run_id" --repo=${{ github.repository }} || true
+            fi
+          done
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -47,16 +60,25 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit changes
+      - name: Commit and push changes
         if: steps.verify-changed-files.outputs.changed == 'true'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add Makefile
-          git commit -m "chore: update geodata versions [skip ci]"
-
-      - name: Push changes
-        if: steps.verify-changed-files.outputs.changed == 'true'
-        run: |
+          
           branch=$(git branch --show-current || echo "main")
-          git push origin HEAD:$branch
+          
+          # 检查上一次提交是否是自动更新提交
+          last_commit_msg=$(git log -1 --pretty=%s 2>/dev/null || echo "")
+          
+          git add Makefile
+          
+          if [[ "$last_commit_msg" == "chore: update geodata versions"* ]]; then
+            # 如果上次提交也是自动更新，则修改该提交（覆盖历史）
+            git commit --amend -m "chore: update geodata versions [skip ci]"
+            git push origin HEAD:$branch --force
+          else
+            # 否则创建新提交
+            git commit -m "chore: update geodata versions [skip ci]"
+            git push origin HEAD:$branch
+          fi
