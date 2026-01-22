@@ -15,17 +15,17 @@ include $(INCLUDE_DIR)/package.mk
 GEOIP_VER:=202601212218
 GEOIP_FILE:=geoip.dat.$(GEOIP_VER)
 define Download/geoip
-  URL:=https://github.com/v2fly/geoip/releases/download/$(GEOIP_VER)/
+  URL:=https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/$(GEOIP_VER)/
   URL_FILE:=geoip.dat
   FILE:=$(GEOIP_FILE)
   HASH:=1b205f743e042b1e0bd37b0010b2324854301415dbce598256bf307338e68c3a
 endef
 
 GEOSITE_VER:=202601212218
-GEOSITE_FILE:=dlc.dat.$(GEOSITE_VER)
+GEOSITE_FILE:=geosite.dat.$(GEOSITE_VER)
 define Download/geosite
-  URL:=https://github.com/v2fly/domain-list-community/releases/download/$(GEOSITE_VER)/
-  URL_FILE:=dlc.dat
+  URL:=https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/$(GEOSITE_VER)/
+  URL_FILE:=geosite.dat
   FILE:=$(GEOSITE_FILE)
   HASH:=c62a3c04fa5984d32344e5351cc1af253bb2fcc2bc1aa04903e1ff820fc86515
 endef
